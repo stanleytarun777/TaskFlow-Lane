@@ -8,7 +8,7 @@ import Stats from "./pages/Stats";
 import ThemeSettings from "./pages/ThemeSettings";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
-import ResetPassword from "./pages/ResetPassword";
+import ResetPassword from "./pages/reset-password";
 import Sidebar from "./components/Sidebar";
 import SiteFooter from "./components/SiteFooter";
 
@@ -23,8 +23,10 @@ function AppContent() {
   const navigate = useNavigate();
   const hasHydratedSessionRef = useRef(false);
   const wasAuthenticatedRef = useRef(false);
-  const isResetRoute = location.pathname === "/reset-password";
-  const isRecoveryHash = (location.hash ?? "").includes("type=recovery");
+  const locationSearch = location.search ?? "";
+  const locationHash = location.hash ?? "";
+  const isRecoveryLink = (locationSearch + locationHash).includes("type=recovery");
+  const recoveryRedirectTarget = `/reset-password${locationSearch}${locationHash}`;
 
   const normalizeTask = useCallback((row) => ({
     id: row.id,
@@ -131,6 +133,9 @@ function AppContent() {
       if (!isMounted) {
         return;
       }
+      if (event === "PASSWORD_RECOVERY") {
+        navigate(recoveryRedirectTarget, { replace: true });
+      }
       const nextUser = session?.user ?? null;
       const previousUser = userRef.current;
       setUser(nextUser);
@@ -141,8 +146,12 @@ function AppContent() {
       }
       if (event === "SIGNED_IN" && hasHydratedSessionRef.current && !previousUser && nextUser) {
         const onResetRoute = typeof window !== "undefined" && window.location.pathname === "/reset-password";
-        const hasRecoveryHash = typeof window !== "undefined" && window.location.hash.includes("type=recovery");
-        if (!onResetRoute && !hasRecoveryHash) {
+          const hasRecoveryHash = typeof window !== "undefined" && (window.location.hash + window.location.search).includes("type=recovery");
+          if (hasRecoveryHash) {
+            navigate(recoveryRedirectTarget, { replace: true });
+            return;
+          }
+          if (!onResetRoute) {
           navigate("/", { replace: true });
         }
       }
@@ -154,7 +163,7 @@ function AppContent() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, recoveryRedirectTarget]);
 
   useEffect(() => {
     fetchTasks(user);
@@ -200,15 +209,14 @@ function AppContent() {
   useEffect(() => {
     const wasAuthenticated = wasAuthenticatedRef.current;
     const isAuthenticated = Boolean(user);
-    const isRecoveryFlow = isResetRoute || isRecoveryHash;
-    if (!wasAuthenticated && isAuthenticated && !isRecoveryFlow) {
+    if (!wasAuthenticated && isAuthenticated && !isRecoveryLink) {
       navigate("/", { replace: true });
     }
     wasAuthenticatedRef.current = isAuthenticated;
-  }, [user, navigate, isResetRoute, isRecoveryHash]);
+  }, [user, navigate, isRecoveryLink]);
 
-  if (isResetRoute) {
-    return <ResetPassword />;
+  if (isRecoveryLink && location.pathname !== "/reset-password") {
+    return <Navigate to={recoveryRedirectTarget} replace />;
   }
 
   if (!user) return <Auth />;
@@ -319,7 +327,7 @@ function AppContent() {
               <Route path="/change-theme" element={<ThemeSettings />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
-              <Route path="*" element={<Navigate to="/" />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
         </div>
@@ -332,7 +340,10 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
     </Router>
   );
 }
