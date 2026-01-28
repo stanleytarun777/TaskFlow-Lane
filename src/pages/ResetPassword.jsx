@@ -3,74 +3,109 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import "../auth/Auth.css";
 
-const getRecoveryDefaults = () => {
+const parseRecoveryTokens = () => {
   if (typeof window === "undefined") {
-    return {
-      isRecovery: false,
-      message: "This password reset link is invalid or has expired.",
-      verifying: false,
-    };
+    return null;
   }
-  const hash = window.location.hash ?? "";
-  const recovery = hash.includes("type=recovery");
-  return {
-    isRecovery: recovery,
-    message: recovery ? "Validating reset link..." : "This password reset link is invalid or has expired.",
-    verifying: recovery,
+
+  const parseSource = (input) => {
+    if (!input) {
+      return null;
+    }
+    const cleaned = input.replace(/^[#?]/, "");
+    const params = new URLSearchParams(cleaned);
+    const type = params.get("type");
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    if (type === "recovery" && accessToken && refreshToken) {
+      return { accessToken, refreshToken };
+    }
+    return null;
   };
+
+  return parseSource(window.location.hash) ?? parseSource(window.location.search) ?? null;
 };
 
 function ResetPassword() {
-  const defaults = getRecoveryDefaults();
+  const isBrowser = typeof window !== "undefined";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [statusMessage, setStatusMessage] = useState(defaults.message);
+  const [recoveryTokens] = useState(() => (isBrowser ? parseRecoveryTokens() : null));
+  const hasRecoveryTokens = Boolean(recoveryTokens);
+  const [statusMessage, setStatusMessage] = useState(() => (
+    hasRecoveryTokens
+      ? "Validating reset link..."
+      : "This password reset link is invalid or has expired."
+  ));
   const [error, setError] = useState("");
-  const [verifying, setVerifying] = useState(defaults.verifying);
-  const [isRecovery, setIsRecovery] = useState(defaults.isRecovery);
+  const [verifying, setVerifying] = useState(hasRecoveryTokens);
+  const [canReset, setCanReset] = useState(hasRecoveryTokens);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (typeof window === "undefined" || !isRecovery) {
+    if (!isBrowser || !recoveryTokens) {
       return undefined;
     }
 
     let isActive = true;
 
-    const exchangeSession = async () => {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href);
+    const hydrateSession = async () => {
+      setVerifying(true);
+      const { data } = await supabase.auth.getSession();
+      let session = data.session ?? null;
+
+      if (!session) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: recoveryTokens.accessToken,
+          refresh_token: recoveryTokens.refreshToken,
+        });
+        if (!isActive) {
+          return;
+        }
+        if (sessionError) {
+          setStatusMessage(sessionError.message || "This password reset link is invalid or has expired.");
+          setCanReset(false);
+          setVerifying(false);
+          return;
+        }
+        const refreshed = await supabase.auth.getSession();
+        session = refreshed.data.session ?? null;
+      }
+
       if (!isActive) {
         return;
       }
-      if (exchangeError) {
-        setStatusMessage(exchangeError.message || "Reset link could not be verified.");
-        setIsRecovery(false);
-        setVerifying(false);
-        return;
+
+      if (session) {
+        setStatusMessage("Reset link verified. Choose a new password.");
+        setCanReset(true);
+      } else {
+        setStatusMessage("This password reset link is invalid or has expired.");
+        setCanReset(false);
       }
-      setStatusMessage("Reset link verified. Choose a new password.");
       setVerifying(false);
+
       try {
         const cleanUrl = `${window.location.origin}${window.location.pathname}`;
         window.history.replaceState({}, document.title, cleanUrl);
       } catch {
-        // Ignore history manipulation issues
+        // ignore
       }
     };
 
-    exchangeSession();
+    hydrateSession();
 
     return () => {
       isActive = false;
     };
-  }, [isRecovery]);
+  }, [recoveryTokens, isBrowser]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
 
-    if (!isRecovery) {
+    if (!canReset) {
       setError("This reset link is not valid anymore.");
       return;
     }
@@ -94,17 +129,18 @@ function ResetPassword() {
       return;
     }
 
-    setStatusMessage("Password updated successfully. Redirecting to your workspace...");
+    setStatusMessage("Password updated successfully. Redirecting to login...");
     setPassword("");
     setConfirmPassword("");
+    await supabase.auth.signOut();
 
     setTimeout(() => {
       navigate("/", { replace: true });
-    }, 1200);
+    }, 1500);
   };
 
   const renderBody = () => {
-    if (!isRecovery && !verifying) {
+    if (!canReset && !verifying) {
       return (
         <div className="auth-note" role="alert" aria-live="assertive">
           {statusMessage || "Reset link is invalid."}
@@ -120,7 +156,7 @@ function ResetPassword() {
           className="auth-input"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          disabled={verifying}
+          disabled={verifying || !canReset}
           required
         />
         <input
@@ -129,13 +165,13 @@ function ResetPassword() {
           className="auth-input"
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
-          disabled={verifying}
+          disabled={verifying || !canReset}
           required
         />
         {error && (
           <p className="auth-error" role="alert" aria-live="assertive">{error}</p>
         )}
-        <button type="submit" className="auth-button" disabled={verifying || submitting}>
+        <button type="submit" className="auth-button" disabled={verifying || submitting || !canReset}>
           {submitting ? "Updating..." : "Update Password"}
         </button>
       </form>
