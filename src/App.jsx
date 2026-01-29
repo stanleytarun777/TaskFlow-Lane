@@ -1,3 +1,18 @@
+/**
+ * App.jsx - Root Application Component
+ * 
+ * This is the main application file that handles:
+ * 1. Authentication state management (user login/logout)
+ * 2. Task data fetching from Supabase
+ * 3. Real-time task updates via subscriptions
+ * 4. Routing to different pages (Dashboard, Calendar, Stats, etc.)
+ * 5. Mobile navigation state
+ * 
+ * Two main components:
+ * - AppContent: Rendered when user is authenticated (shows dashboard, sidebar, etc.)
+ * - App: Root router component that splits between Auth page and AppContent
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase";
@@ -12,22 +27,58 @@ import ResetPassword from "./pages/reset-password";
 import Sidebar from "./components/Sidebar";
 import SiteFooter from "./components/SiteFooter";
 
+/**
+ * AppContent Component
+ * 
+ * Rendered when user is authenticated. Contains:
+ * - Sidebar navigation
+ * - Main content area with routing
+ * - Footer
+ * - Task management logic
+ * - Mobile navigation menu
+ */
 function AppContent() {
+  // ===== STATE MANAGEMENT =====
+  
+  // User authentication state - holds current logged-in user data
   const [user, setUser] = useState(null);
+  
+  // Mobile menu toggle state - shows/hides navigation on mobile
   const [navOpen, setNavOpen] = useState(false);
+  
+  // Tasks array - stores all user's tasks
   const [tasks, setTasks] = useState([]);
+  
+  // Loading and error states for task fetching
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState("");
+  
+  // Refs for tracking authentication state across renders
   const userRef = useRef(null);
-  const location = useLocation();
-  const navigate = useNavigate();
   const hasHydratedSessionRef = useRef(false);
   const wasAuthenticatedRef = useRef(false);
+  
+  // React Router hooks for navigation and location
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Check if current URL contains password recovery token (from email link)
   const locationSearch = location.search ?? "";
   const locationHash = location.hash ?? "";
   const isRecoveryLink = (locationSearch + locationHash).includes("type=recovery");
   const recoveryRedirectTarget = `/reset-password${locationSearch}${locationHash}`;
 
+  /**
+   * normalizeTask - Converts database task object to app format
+   * 
+   * Takes raw database row and transforms it with:
+   * - Default values for missing fields
+   * - Renamed properties (due_date -> dueDate)
+   * - Type consistency
+   * 
+   * @param {Object} row - Database task row
+   * @returns {Object} Normalized task object
+   */
   const normalizeTask = useCallback((row) => ({
     id: row.id,
     title: row.title,
@@ -37,6 +88,16 @@ function AppContent() {
     priority: row.priority ?? "medium",
   }), []);
 
+  /**
+   * sortTasks - Sorts tasks by due date, then by title
+   * 
+   * Priority order:
+   * 1. Tasks with due dates (sorted chronologically)
+   * 2. Tasks without due dates (sorted alphabetically by title)
+   * 
+   * @param {Array} collection - Array of task objects
+   * @returns {Array} Sorted task array
+   */
   const sortTasks = useCallback((collection) => {
     return [...collection].sort((a, b) => {
       const aTime = a?.dueDate ? new Date(a.dueDate).getTime() : Number.NaN;
@@ -55,6 +116,17 @@ function AppContent() {
     });
   }, []);
 
+  /**
+   * fetchTasks - Fetches all tasks for current user from Supabase
+   * 
+   * Handles:
+   * - Loading state management
+   * - Error handling
+   * - Task normalization
+   * - Task sorting
+   * 
+   * @param {Object} currentUser - Current authenticated user object
+   */
   const fetchTasks = useCallback(async (currentUser) => {
     if (!currentUser) {
       setTasks([]);
@@ -66,6 +138,7 @@ function AppContent() {
     setTasksLoading(true);
     setTasksError("");
     try {
+      // Query Supabase for all tasks belonging to current user
       const { data, error } = await supabase
         .from("tasks")
         .select("id,title,description,due_date,completed,priority")
@@ -76,6 +149,7 @@ function AppContent() {
         setTasks([]);
         setTasksError(error.message);
       } else {
+        // Normalize and sort tasks before storing
         setTasks(sortTasks((data ?? []).map((row) => normalizeTask(row))));
       }
     } catch (error) {
@@ -86,6 +160,14 @@ function AppContent() {
     }
   }, [normalizeTask, sortTasks]);
 
+  /**
+   * handleChildTasksChange - Updates tasks state from child components
+   * 
+   * Called when TasksFixed component creates/updates/deletes tasks.
+   * Re-sorts tasks after any change.
+   * 
+   * @param {Array|Function} nextValue - New tasks array or function to compute it
+   */
   const handleChildTasksChange = useCallback((nextValue) => {
     setTasks((prev) => {
       const resolved = typeof nextValue === "function" ? nextValue(prev) : nextValue;
@@ -96,6 +178,15 @@ function AppContent() {
     });
   }, [sortTasks]);
 
+  /**
+   * applyRealtimeChange - Processes real-time Supabase subscription updates
+   * 
+   * Handles three types of events:
+   * - DELETE: Removes task from local state
+   * - INSERT/UPDATE: Adds or updates task in local state
+   * 
+   * @param {Object} payload - Supabase subscription event payload
+   */
   const applyRealtimeChange = useCallback((payload) => {
     if (!payload) {
       return;

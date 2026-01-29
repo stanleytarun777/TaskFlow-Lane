@@ -1,13 +1,55 @@
+/**
+ * Auth.jsx - Authentication Component
+ * 
+ * This component handles three user flows:
+ * 1. Login - Authenticate existing users with email/password
+ * 2. Signup - Create new user accounts with profile data
+ * 3. Forgot Password - Send password reset email with recovery link
+ * 
+ * Features:
+ * - Email validation with regex pattern
+ * - Password strength requirements
+ * - Error handling and user feedback
+ * - Toggle between login and signup modes
+ * - Supabase integration for all auth operations
+ */
+
 import { useState } from "react";
 import { supabase } from "../supabase";
 import "./Auth.css";
 
+/**
+ * EMAIL_PATTERN - Regular expression for email validation
+ * 
+ * Validates email format:
+ * - username (alphanumeric, dots, underscores, hyphens, plus)
+ * - @ symbol
+ * - domain (alphanumeric, hyphens)
+ * - TLD (.com, .org, etc.)
+ */
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
+/**
+ * normalizeEmail - Trims whitespace from email input
+ * 
+ * @param {string} value - Raw email input
+ * @returns {string} Trimmed email
+ */
 function normalizeEmail(value = "") {
   return value.trim();
 }
 
+/**
+ * validateEmailStructure - Comprehensive email validation
+ * 
+ * Checks:
+ * 1. Email is not empty
+ * 2. Matches email regex pattern
+ * 3. Domain has proper format (dots with characters)
+ * 
+ * @param {string} value - Email to validate
+ * @returns {Object} { valid: boolean, message: string, normalized: string }
+ */
 function validateEmailStructure(value = "") {
   const normalized = normalizeEmail(value);
   if (!normalized) {
@@ -23,29 +65,63 @@ function validateEmailStructure(value = "") {
   return { valid: true, message: "", normalized };
 }
 
+/**
+ * Auth Component - Main authentication form
+ * 
+ * Renders either login or signup form based on isLogin state.
+ * Shows appropriate form fields and validates inputs before submission.
+ */
 function Auth() {
+  // ===== STATE MANAGEMENT =====
+  
+  // Profile fields for signup
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  
+  // Common auth fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
+  // UI state - which form is showing
   const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [resetMessage, setResetMessage] = useState("");
-  const [resetting, setResetting] = useState(false);
-  const [emailError, setEmailError] = useState("");
-  const [authError, setAuthError] = useState("");
+  
+  // Loading states for different operations
+  const [loading, setLoading] = useState(false);           // Login/signup loading
+  const [resetting, setResetting] = useState(false);       // Password reset loading
+  
+  // Error messages for different validation states
+  const [emailError, setEmailError] = useState("");        // Email validation error
+  const [authError, setAuthError] = useState("");          // Login/signup error
+  const [resetMessage, setResetMessage] = useState("");    // Password reset status/error
 
+  /**
+   * handleToggleMode - Switch between login and signup forms
+   * 
+   * Clears all error messages when switching modes.
+   */
   const handleToggleMode = () => {
     setEmailError("");
     setAuthError("");
     setIsLogin((prev) => !prev);
   };
 
+  /**
+   * handleSubmit - Handle login or signup form submission
+   * 
+   * Flow:
+   * 1. Validate email format
+   * 2. Call appropriate Supabase auth function
+   * 3. Handle errors and display user feedback
+   * 4. On success, Supabase auth state listener triggers app redirect
+   * 
+   * @param {Event} e - Form submit event
+   */
   async function handleSubmit(e) {
     e.preventDefault();
     setAuthError("");
     setEmailError("");
 
+    // Validate email format before submission
     const emailValidation = validateEmailStructure(email);
     if (!emailValidation.valid) {
       setEmailError(emailValidation.message);
@@ -57,15 +133,19 @@ function Auth() {
     setLoading(true);
 
     if (isLogin) {
+      // LOGIN FLOW - Authenticate existing user
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
       });
 
       if (error) {
+        // Parse error message to determine error type
         const normalized = (error.message ?? "").toLowerCase();
         const invalidPassword = normalized.includes("invalid login") || normalized.includes("invalid email or password") || normalized.includes("invalid password") || normalized.includes("wrong password");
         const emailIssue = !invalidPassword && (normalized.includes("email") || normalized.includes("user") || normalized.includes("account"));
+        
+        // Display error in appropriate field
         if (emailIssue) {
           setEmailError(error.message || "Check your email address.");
         } else {
@@ -75,6 +155,7 @@ function Auth() {
         return;
       }
     } else {
+      // SIGNUP FLOW - Create new user account
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
