@@ -1,7 +1,14 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Calendar from "../components/Calendar";
 
 function CalendarPage({ tasks = [] }) {
+	const [updateKey, setUpdateKey] = useState(0);
+
+	// Force re-render when tasks update to ensure calendar reflects latest data
+	useEffect(() => {
+		setUpdateKey((prev) => prev + 1);
+	}, [tasks]);
+
 	const localTimes = useMemo(() => {
 		const entries = {};
 		tasks.forEach((task) => {
@@ -11,7 +18,7 @@ function CalendarPage({ tasks = [] }) {
 			entries[task.id] = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 		});
 		return entries;
-	}, [tasks]);
+	}, [tasks, updateKey]);
 
 	return (
 		<div className="page-container" aria-label="Calendar">

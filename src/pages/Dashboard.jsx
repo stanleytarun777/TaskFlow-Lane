@@ -21,6 +21,7 @@ function Dashboard({ user, tasks, onTasksChange, tasksLoading = false, tasksErro
 
   const displayName = getFirstName();
 
+  // Track when tasks update and update sync state
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
@@ -29,13 +30,15 @@ function Dashboard({ user, tasks, onTasksChange, tasksLoading = false, tasksErro
       realtime: true,
       calendarAware: true,
       lastSync: new Date().toISOString(),
+      taskCount: tasks.length,
+      completedCount: tasks.filter((t) => t.completed).length,
     };
     window.__taskflowSync = syncState;
     const timer = setInterval(() => {
       syncState.lastSync = new Date().toISOString();
     }, 15000);
     return () => clearInterval(timer);
-  }, []);
+  }, [tasks]);
 
   return (
     <section className="dashboard">

@@ -171,7 +171,7 @@ function AppContent() {
    * handleChildTasksChange - Updates tasks state from child components
    * 
    * Called when TasksFixed component creates/updates/deletes tasks.
-   * Re-sorts tasks after any change.
+   * Re-sorts tasks after any change and ensures all pages (Stats, Calendar) receive updates.
    * 
    * @param {Array|Function} nextValue - New tasks array or function to compute it
    */
@@ -181,7 +181,11 @@ function AppContent() {
       if (!Array.isArray(resolved)) {
         return prev;
       }
-      return sortTasks(resolved);
+      const sorted = sortTasks(resolved);
+      if (process.env.NODE_ENV === "development") {
+        console.log("[TaskFlow] Child component update:", sorted.length, "tasks");
+      }
+      return sorted;
     });
   }, [sortTasks]);
 
@@ -192,6 +196,9 @@ function AppContent() {
    * - DELETE: Removes task from local state
    * - INSERT/UPDATE: Adds or updates task in local state
    * 
+   * REAL-TIME INTEGRATION: This function ensures Stats, Calendar, and all pages
+   * get immediate updates when tasks change via Supabase subscriptions.
+   * 
    * @param {Object} payload - Supabase subscription event payload
    */
   const applyRealtimeChange = useCallback((payload) => {
@@ -200,7 +207,11 @@ function AppContent() {
     }
     setTasks((current) => {
       if (payload.eventType === "DELETE" && payload.old?.id) {
-        return current.filter((task) => task.id !== payload.old.id);
+        const updated = current.filter((task) => task.id !== payload.old.id);
+        if (process.env.NODE_ENV === "development") {
+          console.log("[TaskFlow Real-Time] Task deleted:", payload.old.id, "Remaining:", updated.length);
+        }
+        return updated;
       }
       if (!payload.new) {
         return current;
@@ -208,11 +219,20 @@ function AppContent() {
       const incoming = normalizeTask(payload.new);
       const existingIndex = current.findIndex((task) => task.id === incoming.id);
       if (existingIndex === -1) {
-        return sortTasks([...current, incoming]);
+        const updated = sortTasks([...current, incoming]);
+        if (process.env.NODE_ENV === "development") {
+          console.log("[TaskFlow Real-Time] Task inserted:", incoming.id);
+        }
+        return updated;
       }
+      const old = current[existingIndex];
       const next = [...current];
       next[existingIndex] = incoming;
-      return sortTasks(next);
+      const sorted = sortTasks(next);
+      if (process.env.NODE_ENV === "development" && old.completed !== incoming.completed) {
+        console.log("[TaskFlow Real-Time] Task toggled:", incoming.id, "completed:", incoming.completed);
+      }
+      return sorted;
     });
   }, [normalizeTask, sortTasks]);
 
@@ -266,10 +286,19 @@ function AppContent() {
       .channel(`tasks-realtime-${user.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${user.id}` },  // CRITICAL: Filter by user_id
-        (payload) => applyRealtimeChange(payload)
+        { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (process.env.NODE_ENV === "development") {
+            console.log("[TaskFlow Real-Time] Event received:", payload.eventType);
+          }
+          applyRealtimeChange(payload);
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (process.env.NODE_ENV === "development") {
+          console.log("[TaskFlow Real-Time] Channel status:", status);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

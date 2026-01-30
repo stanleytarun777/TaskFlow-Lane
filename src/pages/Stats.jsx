@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   RANGE_OPTIONS,
   computePriorityBreakdown,
@@ -11,29 +11,35 @@ import {
 
 function Stats({ tasks = [] }) {
   const [selectedRange, setSelectedRange] = useState("weekly");
+  const [updateKey, setUpdateKey] = useState(0);
 
-  const activeWindow = useMemo(() => getRangeWindow(selectedRange), [selectedRange]);
-  const previousWindow = useMemo(() => shiftWindow(activeWindow, -1), [activeWindow]);
+  // Force re-render when tasks update to ensure stats reflect latest data
+  useEffect(() => {
+    setUpdateKey((prev) => prev + 1);
+  }, [tasks]);
+
+  const activeWindow = useMemo(() => getRangeWindow(selectedRange), [selectedRange, updateKey]);
+  const previousWindow = useMemo(() => shiftWindow(activeWindow, -1), [activeWindow, updateKey]);
 
   const currentTasks = useMemo(
     () => filterTasksByWindow(tasks, activeWindow),
-    [tasks, activeWindow]
+    [tasks, activeWindow, updateKey]
   );
   const previousTasks = useMemo(
     () => filterTasksByWindow(tasks, previousWindow),
-    [tasks, previousWindow]
+    [tasks, previousWindow, updateKey]
   );
 
-  const summary = useMemo(() => computeSummaryMetrics(currentTasks), [currentTasks]);
-  const previousSummary = useMemo(() => computeSummaryMetrics(previousTasks), [previousTasks]);
+  const summary = useMemo(() => computeSummaryMetrics(currentTasks), [currentTasks, updateKey]);
+  const previousSummary = useMemo(() => computeSummaryMetrics(previousTasks), [previousTasks, updateKey]);
   const activeRangeTasks = useMemo(
     () => currentTasks.filter((task) => !task.completed),
-    [currentTasks]
+    [currentTasks, updateKey]
   );
 
   const priorityBreakdown = useMemo(
     () => computePriorityBreakdown(activeRangeTasks),
-    [activeRangeTasks]
+    [activeRangeTasks, updateKey]
   );
 
   const completionDelta = summary.completionRate - previousSummary.completionRate;
