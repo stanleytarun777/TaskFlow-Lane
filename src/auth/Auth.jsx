@@ -167,7 +167,11 @@ function Auth() {
 
       if (error) {
         const normalized = (error.message ?? "").toLowerCase();
-        if (normalized.includes("email")) {
+        // Check if email already exists in system
+        const emailExists = normalized.includes("already registered") || normalized.includes("user_already_exists") || normalized.includes("email already");
+        if (emailExists) {
+          setEmailError("This email is already in use. Please log in instead or use a different email.");
+        } else if (normalized.includes("email")) {
           setEmailError(error.message || "Check your email address.");
         } else {
           setAuthError(error.message || "Unable to create account.");
