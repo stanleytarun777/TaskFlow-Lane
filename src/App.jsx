@@ -23,7 +23,7 @@ import Stats from "./pages/Stats";
 import ThemeSettings from "./pages/ThemeSettings";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
-import ResetPassword from "./pages/reset-password";
+
 import Sidebar from "./components/Sidebar";
 import SiteFooter from "./components/SiteFooter";
 
@@ -62,11 +62,7 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Check if current URL contains password recovery token (from email link)
-  const locationSearch = location.search ?? "";
-  const locationHash = location.hash ?? "";
-  const isRecoveryLink = (locationSearch + locationHash).includes("type=recovery");
-  const recoveryRedirectTarget = `/reset-password${locationSearch}${locationHash}`;
+
 
   /**
    * normalizeTask - Converts database task object to app format
@@ -224,9 +220,6 @@ function AppContent() {
       if (!isMounted) {
         return;
       }
-      if (event === "PASSWORD_RECOVERY") {
-        navigate(recoveryRedirectTarget, { replace: true });
-      }
       const nextUser = session?.user ?? null;
       const previousUser = userRef.current;
       setUser(nextUser);
@@ -236,15 +229,7 @@ function AppContent() {
         return;
       }
       if (event === "SIGNED_IN" && hasHydratedSessionRef.current && !previousUser && nextUser) {
-        const onResetRoute = typeof window !== "undefined" && window.location.pathname === "/reset-password";
-          const hasRecoveryHash = typeof window !== "undefined" && (window.location.hash + window.location.search).includes("type=recovery");
-          if (hasRecoveryHash) {
-            navigate(recoveryRedirectTarget, { replace: true });
-            return;
-          }
-          if (!onResetRoute) {
-          navigate("/", { replace: true });
-        }
+        navigate("/", { replace: true });
       }
       if (event === "SIGNED_OUT") {
         hasHydratedSessionRef.current = true;
@@ -254,7 +239,7 @@ function AppContent() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [navigate, recoveryRedirectTarget]);
+  }, [navigate]);
 
   useEffect(() => {
     fetchTasks(user);
@@ -304,11 +289,7 @@ function AppContent() {
       navigate("/", { replace: true });
     }
     wasAuthenticatedRef.current = isAuthenticated;
-  }, [user, navigate, isRecoveryLink]);
-
-  if (isRecoveryLink && location.pathname !== "/reset-password") {
-    return <Navigate to={recoveryRedirectTarget} replace />;
-  }
+  }, [user, navigate]);
 
   if (!user) return <Auth />;
 
@@ -432,7 +413,6 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/*" element={<AppContent />} />
       </Routes>
     </Router>
