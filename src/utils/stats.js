@@ -86,12 +86,13 @@ export function filterTasksByWindow(tasks = [], window) {
   const startMs = window.start.getTime();
   const endMs = window.end.getTime();
   return tasks.filter((task) => {
+    // Include tasks without a due date in stats
     if (!task?.dueDate) {
-      return false;
+      return true;
     }
     const timestamp = new Date(task.dueDate).getTime();
     if (Number.isNaN(timestamp)) {
-      return false;
+      return true;  // Include tasks with invalid dates too
     }
     return timestamp >= startMs && timestamp < endMs;
   });

@@ -10,11 +10,14 @@ import {
 } from "../utils/stats";
 
 function Stats({ tasks = [] }) {
-  const [selectedRange, setSelectedRange] = useState("weekly");
+  const [selectedRange, setSelectedRange] = useState("daily");
   const [updateKey, setUpdateKey] = useState(0);
 
   // Force re-render when tasks update to ensure stats reflect latest data
   useEffect(() => {
+    if (import.meta.env.MODE === "development") {
+      console.log("[Stats] Tasks updated:", tasks.length, "tasks", tasks.map(t => ({ id: t.id, title: t.title, completed: t.completed, dueDate: t.dueDate })));
+    }
     setUpdateKey((prev) => prev + 1);
   }, [tasks]);
 
@@ -54,6 +57,10 @@ function Stats({ tasks = [] }) {
 
   const rangeDisplay = formatRangeDisplay(activeWindow);
   const rangeDescription = activeWindow?.description ?? "";
+
+  if (import.meta.env.MODE === "development") {
+    console.log("[Stats] Rendering with:", { selectedRange, currentTasksCount: currentTasks.length, summary, updateKey });
+  }
 
   return (
     <div className="page-container stats-view">
