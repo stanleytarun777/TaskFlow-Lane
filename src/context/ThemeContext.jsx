@@ -30,11 +30,21 @@ const THEME_TOKEN_KEYS = Array.from(
 	)
 );
 
-// LocalStorage key for persisting theme preference
-const STORAGE_KEY = "taskflow-theme";
+// LocalStorage key prefix for persisting theme preference (includes user_id for isolation)
+const STORAGE_KEY_PREFIX = "taskflow-theme";
 
 // Theme to use on login page (accessible to non-authenticated users)
 const LOGIN_THEME_ID = themes.some((entry) => entry.id === "contrast") ? "contrast" : DEFAULT_THEME_ID;
+
+/**
+ * getStorageKey - Returns user-scoped storage key
+ * 
+ * @param {string} userId - Unique user identifier
+ * @returns {string} Storage key with user_id namespace
+ */
+const getStorageKey = (userId) => {
+	return userId ? `${STORAGE_KEY_PREFIX}-${userId}` : STORAGE_KEY_PREFIX;
+};
 
 /**
  * resolveThemeId - Validates theme ID exists, returns default if not
@@ -55,14 +65,18 @@ const resolveThemeId = (candidate) => {
  * 
  * On app startup, check if user previously selected a theme.
  * If valid theme stored, use it. Otherwise use default.
+ * For authenticated users, loads user-scoped theme preference.
+ * For non-authenticated, loads shared preference.
  * 
+ * @param {string} userId - Current user ID (optional)
  * @returns {string} Theme ID to use on mount
  */
-const getInitialThemeId = () => {
+const getInitialThemeId = (userId) => {
 	if (typeof window === "undefined") {
 		return DEFAULT_THEME_ID;
 	}
-	const stored = window.localStorage.getItem(STORAGE_KEY);
+	const storageKey = getStorageKey(userId);
+	const stored = window.localStorage.getItem(storageKey);
 	const exists = themes.some((theme) => theme.id === stored);
 	return exists ? stored : DEFAULT_THEME_ID;
 };
@@ -74,30 +88,51 @@ const getInitialThemeId = () => {
  * Manages:
  * - Current theme state
  * - Authentication status
+ * - Current user ID (for theme isolation)
  * - CSS variable application
- * - Theme persistence
+ * - Theme persistence (user-scoped)
  * 
  * Usage: Wrap <App /> with <ThemeProvider>
  * Then use useTheme() hook in any component to access theme.
  */
 export function ThemeProvider({ children }) {
+	// Current user (null when not authenticated)
+	const [currentUser, setCurrentUser] = useState(null);
+
 	// Current selected theme ID (from localStorage or default)
-	const [preferredThemeId, setPreferredThemeId] = useState(getInitialThemeId);
+	const [preferredThemeId, setPreferredThemeId] = useState(() => getInitialThemeId(null));
 	
 	// Track if user is authenticated (determines which theme applies)
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-	// Monitor authentication status
+	// Monitor authentication status and user changes
 	useEffect(() => {
 		let isMounted = true;
 		supabase.auth.getSession().then(({ data }) => {
 			if (isMounted) {
-				setIsAuthenticated(Boolean(data?.session));
+				const user = data?.session?.user;
+				setCurrentUser(user || null);
+				setIsAuthenticated(Boolean(user));
+				// Load user-specific theme when user is authenticated
+				if (user) {
+					const userTheme = getInitialThemeId(user.id);
+					setPreferredThemeId(userTheme);
+				}
 			}
 		});
 		const { data } = supabase.auth.onAuthStateChange((_event, session) => {
 			if (isMounted) {
-				setIsAuthenticated(Boolean(session));
+				const user = session?.user;
+				setCurrentUser(user || null);
+				setIsAuthenticated(Boolean(user));
+				// Load user-specific theme when user changes
+				if (user) {
+					const userTheme = getInitialThemeId(user.id);
+					setPreferredThemeId(userTheme);
+				} else {
+					// Fall back to default theme when logged out
+					setPreferredThemeId(getInitialThemeId(null));
+				}
 			}
 		});
 		return () => {
@@ -117,9 +152,11 @@ export function ThemeProvider({ children }) {
 		if (typeof window === "undefined") {
 			return undefined;
 		}
-		window.localStorage.setItem(STORAGE_KEY, preferredThemeId);
+		// Persist theme preference with user_id namespace for isolation
+		const storageKey = getStorageKey(currentUser?.id);
+		window.localStorage.setItem(storageKey, preferredThemeId);
 		return undefined;
-	}, [preferredThemeId]);
+	}, [preferredThemeId, currentUser?.id]);
 
 	useEffect(() => {
 		if (typeof window === "undefined" || !theme) {

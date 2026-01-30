@@ -13,11 +13,22 @@ import { supabase } from "../supabase";
  * 3. Task updates and deletes verified against task owner
  * 4. Supabase RLS policies must enforce user_id matching on tasks table
  * 5. Real-time subscriptions filtered by user_id (in App.jsx)
+ * 6. User preferences (priority visibility) isolated by user_id in localStorage
  * 
  * DO NOT remove user_id checks - they are critical for data isolation
  */
 
-const PRIORITY_VISIBILITY_STORAGE_KEY = "taskflow-priority-visibility";
+const PRIORITY_VISIBILITY_STORAGE_KEY_PREFIX = "taskflow-priority-visibility";
+
+/**
+ * getStorageKey - Returns user-scoped storage key for preferences
+ * 
+ * @param {string} userId - Unique user identifier
+ * @returns {string} Storage key with user_id namespace
+ */
+const getPreferenceStorageKey = (userId) => {
+	return userId ? `${PRIORITY_VISIBILITY_STORAGE_KEY_PREFIX}-${userId}` : PRIORITY_VISIBILITY_STORAGE_KEY_PREFIX;
+};
 
 export default function TasksFixed({
   user,
@@ -60,7 +71,8 @@ export default function TasksFixed({
     if (typeof window === "undefined") {
       return true;
     }
-    const stored = window.localStorage.getItem(PRIORITY_VISIBILITY_STORAGE_KEY);
+    const storageKey = getPreferenceStorageKey(userId);
+    const stored = window.localStorage.getItem(storageKey);
     return stored === null ? true : stored === "true";
   });
   const [dateError, setDateError] = useState("");
@@ -196,9 +208,10 @@ export default function TasksFixed({
     if (typeof window === "undefined") {
       return undefined;
     }
-    window.localStorage.setItem(PRIORITY_VISIBILITY_STORAGE_KEY, String(showPriorityMeta));
+    const storageKey = getPreferenceStorageKey(userId);
+    window.localStorage.setItem(storageKey, String(showPriorityMeta));
     return undefined;
-  }, [showPriorityMeta]);
+  }, [showPriorityMeta, userId]);
 
   const resetNewTaskForm = useCallback(() => {
     setNewTaskTitle("");
