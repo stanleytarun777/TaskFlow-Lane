@@ -285,7 +285,7 @@ function AppContent() {
   useEffect(() => {
     const wasAuthenticated = wasAuthenticatedRef.current;
     const isAuthenticated = Boolean(user);
-    if (!wasAuthenticated && isAuthenticated && !isRecoveryLink) {
+    if (!wasAuthenticated && isAuthenticated) {
       navigate("/", { replace: true });
     }
     wasAuthenticatedRef.current = isAuthenticated;
