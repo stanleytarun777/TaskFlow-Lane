@@ -1,6 +1,22 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabase";
 
+/**
+ * CRITICAL SECURITY: Multi-User Task Isolation
+ * 
+ * This component implements critical security measures to ensure each user
+ * can ONLY access and modify their own tasks. All operations are isolated by user_id.
+ * 
+ * Security Implementation:
+ * 1. Every task query includes .eq("user_id", userId) filter
+ * 2. Task creation always includes user_id: user.id
+ * 3. Task updates and deletes verified against task owner
+ * 4. Supabase RLS policies must enforce user_id matching on tasks table
+ * 5. Real-time subscriptions filtered by user_id (in App.jsx)
+ * 
+ * DO NOT remove user_id checks - they are critical for data isolation
+ */
+
 const PRIORITY_VISIBILITY_STORAGE_KEY = "taskflow-priority-visibility";
 
 export default function TasksFixed({
@@ -11,7 +27,18 @@ export default function TasksFixed({
   fetchError = "",
   onRefreshTasks,
 }) {
+  // SECURITY: Extract and verify userId from authenticated user object
   const userId = user?.id ?? null;
+  
+  // SECURITY: Validate user is authenticated before rendering
+  if (!userId) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center", color: "var(--text-primary)" }}>
+        Please log in to manage tasks.
+      </div>
+    );
+  }
+
   const [tasks, setTasksState] = useState(tasksProp ?? []);
   const [filter, setFilter] = useState("active");
   const [search, setSearch] = useState("");
@@ -527,11 +554,13 @@ export default function TasksFixed({
     setIsMutating(true);
     setMutationError("");
     try {
+      // SECURITY: Verify task ownership before updating
+      // Both id AND user_id must match to prevent unauthorized modifications
       const { data, error } = await supabase
         .from("tasks")
         .update({ completed: nextCompleted })
         .eq("id", id)
-        .eq("user_id", user.id)
+        .eq("user_id", user.id)  // CRITICAL: Ensure task belongs to current user
         .select("*")
         .single();
       if (error) {
@@ -578,6 +607,9 @@ export default function TasksFixed({
       setMutationError("You must be signed in to delete tasks.");
       return;
     }
+    
+    // SECURITY: Verify task ownership before deletion
+    // This ensures a user cannot delete another user's task
     setIsMutating(true);
     setMutationError("");
     try {
@@ -585,7 +617,7 @@ export default function TasksFixed({
         .from("tasks")
         .delete()
         .eq("id", taskId)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id);  // CRITICAL: Ensure task belongs to current user
       if (error) {
         setMutationError(error.message);
       } else {
@@ -843,11 +875,13 @@ export default function TasksFixed({
     setIsMutating(true);
     setMutationError("");
     try {
+      // SECURITY: Always set user_id to currently authenticated user
+      // This ensures tasks can ONLY be created for the logged-in user
       const { data, error } = await supabase
         .from("tasks")
         .insert([
           {
-            user_id: user.id,
+            user_id: user.id,  // CRITICAL: Bind task to current user
             title,
             description: newTaskDescription.trim(),
             due_date: dueDateIso,

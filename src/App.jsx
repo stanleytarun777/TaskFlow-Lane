@@ -3,10 +3,16 @@
  * 
  * This is the main application file that handles:
  * 1. Authentication state management (user login/logout)
- * 2. Task data fetching from Supabase
- * 3. Real-time task updates via subscriptions
+ * 2. Task data fetching from Supabase (filtered by user_id)
+ * 3. Real-time task updates via subscriptions (filtered by user_id)
  * 4. Routing to different pages (Dashboard, Calendar, Stats, etc.)
  * 5. Mobile navigation state
+ * 
+ * CRITICAL SECURITY:
+ * - All task queries filtered by user_id to ensure user isolation
+ * - Real-time subscriptions scoped to current user only
+ * - Tasks array contains ONLY current user's tasks
+ * - Each user sees and can only modify their own data
  * 
  * Two main components:
  * - AppContent: Rendered when user is authenticated (shows dashboard, sidebar, etc.)
@@ -113,15 +119,19 @@ function AppContent() {
   }, []);
 
   /**
-   * fetchTasks - Fetches all tasks for current user from Supabase
+   * fetchTasks - Fetches ALL tasks for current user from Supabase
+   * 
+   * SECURITY: This query includes .eq("user_id", currentUser.id) filter
+   * to ensure ONLY the logged-in user's tasks are retrieved from the database.
    * 
    * Handles:
    * - Loading state management
    * - Error handling
    * - Task normalization
    * - Task sorting
+   * - User isolation (critical)
    * 
-   * @param {Object} currentUser - Current authenticated user object
+   * @param {Object} currentUser - Current authenticated user object (required)
    */
   const fetchTasks = useCallback(async (currentUser) => {
     if (!currentUser) {
@@ -134,11 +144,12 @@ function AppContent() {
     setTasksLoading(true);
     setTasksError("");
     try {
-      // Query Supabase for all tasks belonging to current user
+      // SECURITY: Query Supabase for tasks belonging ONLY to current user
+      // The .eq("user_id", currentUser.id) ensures isolation between users
       const { data, error } = await supabase
         .from("tasks")
         .select("id,title,description,due_date,completed,priority")
-        .eq("user_id", currentUser.id)
+        .eq("user_id", currentUser.id)  // CRITICAL: Filter by user_id
         .order("due_date", { ascending: true });
 
       if (error) {
@@ -249,11 +260,13 @@ function AppContent() {
     if (!user?.id) {
       return undefined;
     }
+    // SECURITY: Real-time subscription filtered by user_id
+    // This channel listens ONLY to changes in tasks belonging to current user
     const channel = supabase
       .channel(`tasks-realtime-${user.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${user.id}` },
+        { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${user.id}` },  // CRITICAL: Filter by user_id
         (payload) => applyRealtimeChange(payload)
       )
       .subscribe();
