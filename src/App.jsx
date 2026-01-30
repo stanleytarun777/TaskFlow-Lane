@@ -182,7 +182,7 @@ function AppContent() {
         return prev;
       }
       const sorted = sortTasks(resolved);
-      if (process.env.NODE_ENV === "development") {
+      if (import.meta.env.MODE === "development") {
         console.log("[TaskFlow] Child component update:", sorted.length, "tasks");
       }
       return sorted;
@@ -208,7 +208,7 @@ function AppContent() {
     setTasks((current) => {
       if (payload.eventType === "DELETE" && payload.old?.id) {
         const updated = current.filter((task) => task.id !== payload.old.id);
-        if (process.env.NODE_ENV === "development") {
+        if (import.meta.env.MODE === "development") {
           console.log("[TaskFlow Real-Time] Task deleted:", payload.old.id, "Remaining:", updated.length);
         }
         return updated;
@@ -220,7 +220,7 @@ function AppContent() {
       const existingIndex = current.findIndex((task) => task.id === incoming.id);
       if (existingIndex === -1) {
         const updated = sortTasks([...current, incoming]);
-        if (process.env.NODE_ENV === "development") {
+        if (import.meta.env.MODE === "development") {
           console.log("[TaskFlow Real-Time] Task inserted:", incoming.id);
         }
         return updated;
@@ -229,7 +229,7 @@ function AppContent() {
       const next = [...current];
       next[existingIndex] = incoming;
       const sorted = sortTasks(next);
-      if (process.env.NODE_ENV === "development" && old.completed !== incoming.completed) {
+      if (import.meta.env.MODE === "development" && old.completed !== incoming.completed) {
         console.log("[TaskFlow Real-Time] Task toggled:", incoming.id, "completed:", incoming.completed);
       }
       return sorted;
@@ -288,14 +288,14 @@ function AppContent() {
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${user.id}` },
         (payload) => {
-          if (process.env.NODE_ENV === "development") {
+          if (import.meta.env.MODE === "development") {
             console.log("[TaskFlow Real-Time] Event received:", payload.eventType);
           }
           applyRealtimeChange(payload);
         }
       )
       .subscribe((status) => {
-        if (process.env.NODE_ENV === "development") {
+        if (import.meta.env.MODE === "development") {
           console.log("[TaskFlow Real-Time] Channel status:", status);
         }
       });
