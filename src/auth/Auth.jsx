@@ -1,10 +1,9 @@
 /**
  * Auth.jsx - Authentication Component
  * 
- * This component handles three user flows:
+ * This component handles two user flows:
  * 1. Login - Authenticate existing users with email/password
  * 2. Signup - Create new user accounts with profile data
- * 3. Forgot Password - Send password reset email with recovery link
  * 
  * Features:
  * - Email validation with regex pattern
@@ -85,14 +84,12 @@ function Auth() {
   // UI state - which form is showing
   const [isLogin, setIsLogin] = useState(true);
   
-  // Loading states for different operations
-  const [loading, setLoading] = useState(false);           // Login/signup loading
-  const [resetting, setResetting] = useState(false);       // Password reset loading
+  // Loading state for login/signup operations
+  const [loading, setLoading] = useState(false);
   
   // Error messages for different validation states
   const [emailError, setEmailError] = useState("");        // Email validation error
   const [authError, setAuthError] = useState("");          // Login/signup error
-  const [resetMessage, setResetMessage] = useState("");    // Password reset status/error
 
   /**
    * handleToggleMode - Switch between login and signup forms
@@ -201,33 +198,6 @@ function Auth() {
     setLoading(false);
   }
 
-  async function handleResetPassword() {
-    setEmailError("");
-    if (!email) {
-      alert("Enter your email, then click Forgot Password.");
-      return;
-    }
-    const resetValidation = validateEmailStructure(email);
-    if (!resetValidation.valid) {
-      setEmailError(resetValidation.message);
-      return;
-    }
-    setResetting(true);
-    setResetMessage("");
-    const redirectTo = typeof window !== "undefined"
-      ? `${window.location.origin}/reset-password`
-      : "/reset-password";
-    const { error } = await supabase.auth.resetPasswordForEmail(resetValidation.normalized, {
-      redirectTo,
-    });
-    if (error) {
-      setResetMessage(error.message);
-    } else {
-      setResetMessage("Check your email for a password reset link.");
-    }
-    setResetting(false);
-  }
-
   const handleEmailChange = (nextValue) => {
     setEmail(nextValue);
     if (!nextValue.trim()) {
@@ -313,22 +283,6 @@ function Auth() {
           </button>
           {authError && isLogin && (
             <div className="auth-error" role="alert" aria-live="assertive">{authError}</div>
-          )}
-          {isLogin && (
-            <>
-              {resetMessage && (
-                <div className="auth-note" role="status" aria-live="polite">{resetMessage}</div>
-              )}
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                className="auth-link"
-                disabled={resetting}
-                aria-label="Forgot Password"
-              >
-                {resetting ? "Sending reset email..." : "Forgot Password?"}
-              </button>
-            </>
           )}
         </form>
 
