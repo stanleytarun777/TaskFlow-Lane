@@ -40,15 +40,6 @@ export default function TasksFixed({
 }) {
   // SECURITY: Extract and verify userId from authenticated user object
   const userId = user?.id ?? null;
-  
-  // SECURITY: Validate user is authenticated before rendering
-  if (!userId) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center", color: "var(--text-primary)" }}>
-        Please log in to manage tasks.
-      </div>
-    );
-  }
 
   const [tasks, setTasksState] = useState(tasksProp ?? []);
   const [filter, setFilter] = useState("active");
@@ -976,6 +967,15 @@ export default function TasksFixed({
     setEditDateError(validation.valid ? "" : validation.message);
     return validation.valid;
   };
+
+  // SECURITY: Validate user is authenticated before rendering
+  if (!userId) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center", color: "var(--text-primary)" }}>
+        Please log in to manage tasks.
+      </div>
+    );
+  }
 
   return (
     <>
