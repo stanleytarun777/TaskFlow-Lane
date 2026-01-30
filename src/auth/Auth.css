@@ -112,3 +112,12 @@
   font-weight: 600;
   font-size: 0.85rem;
 }
+
+.auth-error.auth-success {
+  color: var(--success, #10b981);
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid var(--success, #10b981);
+}

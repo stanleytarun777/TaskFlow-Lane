@@ -118,6 +118,22 @@ function Auth() {
     setAuthError("");
     setEmailError("");
 
+    // SIGNUP FLOW - Validate all required fields
+    if (!isLogin) {
+      if (!firstName.trim()) {
+        setAuthError("First name is required.");
+        return;
+      }
+      if (!lastName.trim()) {
+        setAuthError("Last name is required.");
+        return;
+      }
+      if (password.length < 6) {
+        setAuthError("Password must be at least 6 characters long.");
+        return;
+      }
+    }
+
     // Validate email format before submission
     const emailValidation = validateEmailStructure(email);
     if (!emailValidation.valid) {
@@ -182,21 +198,39 @@ function Auth() {
 
       const user = data.user;
       if (user) {
+        // Create user profile in profiles table
         const { error: profileError } = await supabase
           .from("profiles")
           .insert({
             id: user.id,
-            first_name: firstName,
-            last_name: lastName,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
             email: user.email,
           });
 
         if (profileError) {
-          alert(profileError.message);
+          setAuthError(profileError.message || "Account created but profile setup failed. Please contact support.");
+          setLoading(false);
+          return;
         }
+
+        // Clear form and show success
+        setFirstName("");
+        setLastName("");
+        setEmail("");
+        setPassword("");
+        setAuthError("");
+        setEmailError("");
+        
+        // Show success message with next steps
+        setAuthError("✓ Account created successfully! You will be logged in shortly...");
+        setLoading(false);
+        
+        // The onAuthStateChange listener in App.jsx will handle the redirect
+        return;
       }
 
-      alert("Account created successfully!");
+      setAuthError("Account creation failed. Please try again.");
     }
 
     setLoading(false);
@@ -285,8 +319,8 @@ function Auth() {
               ? "Login"
               : "Sign Up"}
           </button>
-          {authError && isLogin && (
-            <div className="auth-error" role="alert" aria-live="assertive">{authError}</div>
+          {authError && (
+            <div className={`auth-error${authError.includes("✓") ? " auth-success" : ""}`} role="alert" aria-live="assertive">{authError}</div>
           )}
         </form>
 
