@@ -2385,14 +2385,30 @@ body {
 	gap: 8px;
 }
 @media (max-width: 960px) {
+	:root {
+		--branding-offset: clamp(48px, 12vh, 120px);
+	}
+
 	.app-shell {
 		grid-template-columns: 1fr;
-		padding: 18px;
+		padding: clamp(16px, 4vw, 24px);
+		gap: clamp(12px, 3vw, 20px);
+		min-height: auto;
+		width: 100%;
 	}
 
 	.app-shell--underlap {
 		margin-top: var(--branding-offset);
-		padding-top: clamp(12px, 4vw, 28px);
+		padding-top: clamp(10px, 4vw, 22px);
+	}
+
+	.app-surface {
+		gap: 20px;
+		min-height: auto;
+	}
+
+	.app-main {
+		gap: 20px;
 	}
 
 	.sidebar,
@@ -2500,6 +2516,18 @@ body {
 		border-color: var(--danger);
 		background: rgba(248, 113, 113, 0.24);
 		transform: translateY(-1px);
+	}
+
+	.glass-panel,
+	.panel-card,
+	.tasks-card,
+	.page-hero,
+	.chart-card {
+		padding: clamp(18px, 5vw, 28px);
+	}
+
+	.site-footer__inner {
+		padding: 0 clamp(16px, 6vw, 28px);
 	}
 }
 
@@ -2818,6 +2846,9 @@ body {
 	flex-direction: column;
 	justify-content: space-between;
 	font-size: 0.75rem;
+	color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
 	.dashboard-panels,
 	.stats-grid,
@@ -2854,8 +2885,6 @@ body {
 	.site-branding {
 		padding: clamp(10px, 4vw, 22px) clamp(14px, 5vw, 32px);
 	}
-}
-	color: var(--text-muted);
 }
 
 .sparkline__yaxis span {
