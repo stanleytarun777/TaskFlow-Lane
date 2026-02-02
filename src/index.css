@@ -1717,6 +1717,8 @@ body {
 	padding: 12px;
 	background: var(--input-bg);
 	color: var(--text-primary);
+	font-size: 1rem;
+	line-height: 1.4;
 	transition: border-color 0.2s;
 	resize: vertical;
 }
